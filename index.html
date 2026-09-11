@@ -689,11 +689,28 @@
 
 <div class="map-wrap">
   <div id="map"></div>
+
   <div class="map-controls">
-    <span class="legend-item"><span class="swatch" style="background:var(--c-active)"></span>In force (active / extended)</span>
-    <spa<div class="paper-callout">n class="legend-item"><span class="swatch" style="background:var(--c-pending)"></span>Pending / proposed</span>
-    <span class="legend-item"><span class="swatch" style="background:var(--c-replaced)"></span>Replaced / expired</span>
-    <span class="legend-item"><span class="swatch" style="background:var(--c-rescinded)"></span>Rescinded</span>
+    <span class="legend-item">
+      <span class="swatch" style="background:var(--c-active)"></span>
+      In force (active / extended)
+    </span>
+
+    <span class="legend-item">
+      <span class="swatch" style="background:var(--c-pending)"></span>
+      Pending / proposed
+    </span>
+
+    <span class="legend-item">
+      <span class="swatch" style="background:var(--c-replaced)"></span>
+      Replaced / expired
+    </span>
+
+    <span class="legend-item">
+      <span class="swatch" style="background:var(--c-rescinded)"></span>
+      Rescinded
+    </span>
+
     <div class="filter-buttons" id="filter-buttons">
       <button class="active" data-filter="all">All</button>
       <button data-filter="in-force">In force</button>
@@ -701,9 +718,11 @@
       <button data-filter="past">Past</button>
     </div>
   </div>
-  <p style="font-size: 12px; color: var(--ink-soft); margin: -4px 0 22px;">Map shows 531 of 533 instruments. Two aggregate meta-rows ("Other Reported Local Moratoria, MI" and "Proposed or Rejected Local Pauses, MD") aren't real geographic points. Click any marker for jurisdiction details.</p>
-</div>
 
+  <p id="map-summary" style="font-size: 12px; color: var(--ink-soft); margin: -4px 0 22px;">
+    Loading data center map records…
+  </p>
+</div>
 
 <main>
 
