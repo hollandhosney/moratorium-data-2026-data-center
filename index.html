@@ -890,10 +890,15 @@
     maxZoom: 12,
     scrollWheelZoom: false,  // friendlier; user can shift-scroll
   });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 18,
-  }).addTo(map);
+  L.tileLayer(
+  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">' +
+      'OpenStreetMap</a> contributors'
+  }
+  ).addTo(map);
 
   var allMarkers = [];
   var markerLayer = L.layerGroup().addTo(map);
