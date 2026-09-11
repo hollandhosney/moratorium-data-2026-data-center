@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """Regenerate site/moratoria.geojson from the inventory CSV.
 
-The map layer on the site is a point FeatureCollection, one feature per
-geocoded moratorium instrument. Rows without coordinates are skipped -- those
-are the aggregate meta-rows documented in docs/known-gaps.md, which are not real
-geographic points.
+This customized version only includes records where the sectors column
+contains "data_center".
 
-Like summary_stats.json, this artifact previously had no generator in the
-repository, so it silently fell behind the CSV. Written compact (no indent),
-matching the existing file, because it is fetched by the browser.
+Rows without coordinates are skipped because they cannot be displayed
+as geographic points.
 
 Run from repo root:
     python3 scripts/build_geojson.py
-    python3 scripts/build_geojson.py --check    # exit 1 if out of date
+    python3 scripts/build_geojson.py --check
 """
 
 from __future__ import annotations
@@ -23,11 +20,13 @@ import json
 import sys
 from pathlib import Path
 
+
 REPO = Path(__file__).resolve().parents[1]
 INV = REPO / "data" / "moratorium_inventory.csv"
 OUT = REPO / "site" / "moratoria.geojson"
 
-# Property order is preserved from the published file so diffs stay readable.
+
+# Property order is preserved from the published file.
 STRING_PROPS = [
     ("jurisdiction", "jurisdiction"),
     ("state", "state"),
@@ -38,6 +37,8 @@ STRING_PROPS = [
     ("current_end_date_iso", "current_end_date_iso"),
     ("date_enacted_uncertainty", "date_enacted_uncertainty"),
 ]
+
+
 TRAILING_STRING_PROPS = [
     ("date_enacted", "date_enacted"),
     ("duration", "duration"),
@@ -46,67 +47,154 @@ TRAILING_STRING_PROPS = [
 
 
 def parse_json_array(raw: str) -> list:
+    """Convert a JSON-formatted CSV value into a Python list."""
+
     raw = (raw or "").strip()
+
     if not raw:
         return []
+
     try:
         value = json.loads(raw)
     except json.JSONDecodeError:
         return []
+
     return value if isinstance(value, list) else []
 
 
 def build() -> dict:
+    """Build a GeoJSON collection containing data-center records only."""
+
     with open(INV, encoding="utf-8", newline="") as f:
         rows = list(csv.DictReader(f))
 
     features = []
+
     for row in rows:
-        lat, lon = row["latitude"].strip(), row["longitude"].strip()
+        # Read the sectors JSON array.
+        sectors = parse_json_array(row["sectors"])
+
+        # Only keep records that cover data centers.
+        # Multi-sector records containing "data_center" are also included.
+        if "data_center" not in sectors:
+            continue
+
+        lat = row["latitude"].strip()
+        lon = row["longitude"].strip()
+
+        # Skip records without geographic coordinates.
         if not lat or not lon:
             continue
-        props: dict = {"id": row["moratorium_id"]}
+
+        props: dict = {
+            "id": row["moratorium_id"]
+        }
+
         for key, column in STRING_PROPS:
             props[key] = row[column]
 
         days = row["duration_days"].strip()
+
         props["duration_days"] = int(float(days)) if days else None
         props["duration_kind"] = row["duration_kind"]
-        props["sectors"] = parse_json_array(row["sectors"])
-        props["trigger_categories"] = parse_json_array(row["trigger_categories"])
+        props["sectors"] = sectors
+        props["trigger_categories"] = parse_json_array(
+            row["trigger_categories"]
+        )
+
         for key, column in TRAILING_STRING_PROPS:
             props[key] = row[column]
 
-        features.append({
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
-            "properties": props,
-        })
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                        float(lon),
+                        float(lat),
+                    ],
+                },
+                "properties": props,
+            }
+        )
 
-    return {"type": "FeatureCollection", "features": features}
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+    }
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--check", action="store_true", help="exit 1 if the file is out of date")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 if the file is out of date",
+    )
+
+    args = parser.parse_args()
 
     fresh = build()
-    rendered = json.dumps(fresh, separators=(",", ":"))
+    rendered = json.dumps(
+        fresh,
+        separators=(",", ":"),
+    )
 
     if args.check:
-        current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
+        current = (
+            OUT.read_text(encoding="utf-8")
+            if OUT.exists()
+            else ""
+        )
+
         if current.strip() != rendered:
-            print("site/moratoria.geojson is OUT OF DATE - run scripts/build_geojson.py")
+            print(
+                "site/moratoria.geojson is OUT OF DATE "
+                "- run scripts/build_geojson.py"
+            )
             return 1
+
         print("site/moratoria.geojson is current")
         return 0
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(rendered, encoding="utf-8")
-    skipped = sum(1 for _ in open(INV, encoding="utf-8")) - 1 - len(fresh["features"])
+    OUT.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    OUT.write_text(
+        rendered,
+        encoding="utf-8",
+    )
+
+    total_rows = (
+        sum(1 for _ in open(INV, encoding="utf-8")) - 1
+    )
+
+    data_center_rows = 0
+
+    with open(INV, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            sectors = parse_json_array(row["sectors"])
+
+            if "data_center" in sectors:
+                data_center_rows += 1
+
+    skipped = data_center_rows - len(fresh["features"])
+
     print(f"Wrote {OUT.relative_to(REPO)}")
-    print(f"  {len(fresh['features'])} features ({skipped} row(s) without coordinates skipped)")
+    print(f"  Original inventory: {total_rows} records")
+    print(f"  Data center records: {data_center_rows}")
+    print(f"  Map features: {len(fresh['features'])}")
+    print(
+        f"  Data center row(s) without coordinates skipped: {skipped}"
+    )
+
     return 0
 
 
